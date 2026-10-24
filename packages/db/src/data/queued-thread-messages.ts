@@ -26,6 +26,8 @@ import {
   evaluateQueuedMessageTransition,
   isQueuedMessageFailedState,
   projectAttachmentPaths,
+  promptInputSchema,
+  hasUserShellCommand,
   queuedMessageStateFor,
 } from "@bb/domain";
 import type {
@@ -715,6 +717,9 @@ function applyQueuedThreadMessageGroupBoundary(
   if (boundaryIndex > 0) {
     const firstQueuedMessage = queuedMessages[0] ?? null;
     const groupedMessages = queuedMessages.slice(0, boundaryIndex + 1);
+    if (groupedMessages.some(row => hasUserShellCommand(promptInputSchema.array().parse(JSON.parse(row.content))))) {
+      return { kind: "invalid_execution_options" };
+    }
     const hasMixedSender = groupedMessages.some(
       (queuedMessage) =>
         queuedMessage.senderThreadId !== firstQueuedMessage?.senderThreadId,

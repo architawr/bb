@@ -90,6 +90,43 @@ describe("SdkSession", () => {
     vi.restoreAllMocks();
   });
 
+  it("waits for a native context acknowledgement without starting a model turn", async () => {
+    let deliver: ((result: IteratorResult<SDKMessage>) => void) | undefined;
+    mockQueryInstance[Symbol.asyncIterator].mockReturnValue({
+      next: () =>
+        new Promise<IteratorResult<SDKMessage>>((resolve) => {
+          deliver = resolve;
+        }),
+    });
+    const onMessage = vi.fn();
+    const session = new SdkSession(defaultOptions, onMessage, vi.fn());
+    session.start();
+    const appended = session.appendContext("Recorded output: example");
+    let acknowledged = false;
+    void appended.then(() => {
+      acknowledged = true;
+    });
+    const input = await getLatestPrompt()[Symbol.asyncIterator]().next();
+    expect(input.value).toMatchObject({
+      shouldQuery: false,
+      message: { content: "Recorded output: example" },
+    });
+    await waitForAsyncWork();
+    expect(acknowledged).toBe(false);
+    deliver?.({
+      value: {
+        ...input.value,
+        type: "user",
+        session_id: "session-test",
+        uuid: input.value.uuid!,
+      },
+      done: false,
+    });
+    await appended;
+    expect(onMessage).not.toHaveBeenCalled();
+    session.stop();
+  });
+
   it("rejects queued input when the SDK input stream closes before consumption", async () => {
     const session = new SdkSession(defaultOptions, vi.fn(), vi.fn());
     const consumed = session.pushInput("hello");

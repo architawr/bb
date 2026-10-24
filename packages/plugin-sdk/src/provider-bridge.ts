@@ -327,6 +327,7 @@ export {
   reasoningEffortsForLevels,
   reasoningLevelSchema,
   reasoningLevelValues,
+  getUserShellCommand as experimental_getUserShellCommand,
   removeCommandMentionsFromPromptInput,
   runtimePermissionScopeValues,
   toPositiveNumber,

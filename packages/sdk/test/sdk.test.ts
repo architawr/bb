@@ -1341,6 +1341,36 @@ describe("@bb/sdk", () => {
     });
   });
 
+  it("marks explicit shell commands and queues them without changing shell quoting", async () => {
+    const queue = createFetchQueue([{ body: { ok: true, delivery: "sent" } }]);
+    const sdk = createBbSdk({
+      transport: createHttpTransport({
+        baseUrl: "http://bb.test",
+        fetch: queue.fetch,
+        runtime: "node",
+      }),
+    });
+    const shell = sdk.threads.experimental_shellCommand;
+    await shell({ threadId: "thr_shell", command: "printf '%s' '$HOME'" });
+    expect(JSON.parse(queue.requests[0]?.bodyText ?? "{}")).toEqual(
+      expect.objectContaining({
+        input: [
+          {
+            type: "text",
+            text: "!printf '%s' '$HOME'",
+            mentions: [],
+            execution: "shell",
+          },
+        ],
+        mode: "queue-if-active",
+      }),
+    );
+    await expect(
+      shell({ threadId: "thr_shell", command: "  " }),
+    ).rejects.toThrow("empty");
+    expect(queue.requests).toHaveLength(1);
+  });
+
   it("forwards every public permission mode through thread surfaces", async () => {
     const queue = createFetchQueue([
       { body: { id: "thr_auto" }, status: 201 },

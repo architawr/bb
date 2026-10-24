@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { experimental_getUserShellCommand as getUserShellCommand } from "@get-bb/plugin-sdk/provider-bridge";
 
 import { experimental_selectedSkillMentions as selectedSkillMentions } from "@get-bb/plugin-sdk/provider-bridge";
 import { createHash } from "node:crypto";
@@ -2069,7 +2070,15 @@ async function handleTurnStart(
   const compaction = isStandaloneBuiltinCompactCommand(input);
   try {
     let result: unknown;
-    if (compaction) {
+    const shellCommand = getUserShellCommand(input);
+    if (shellCommand !== null) {
+      result = await connection.request({
+        method: "thread/shellCommand",
+        params: { threadId: codexThreadId, command: shellCommand },
+        resultSchema: ignoredChildResultSchema,
+        timeoutMs: CHILD_REQUEST_TIMEOUT_MS,
+      });
+    } else if (compaction) {
       awaitCompactionTurn({
         clientRequestId: params.clientRequestId,
         prepared,
@@ -2121,13 +2130,14 @@ async function handleTurnStart(
         });
     }
     sendResult(id, { threadId: params.threadId });
-    settleAcceptedDispatch({
-      clientRequestId: params.clientRequestId,
-      compaction,
-      prepared,
-      session,
-      result,
-    });
+    if (shellCommand === null)
+      settleAcceptedDispatch({
+        clientRequestId: params.clientRequestId,
+        compaction,
+        prepared,
+        session,
+        result,
+      });
   } catch (error) {
     session.unopenedCompactionDispatches =
       session.unopenedCompactionDispatches.filter(
@@ -2146,6 +2156,15 @@ async function handleTurnSteer(
   id: string | number,
   params: TurnSteerParamsShape,
 ): Promise<void> {
+  if (getUserShellCommand(params.input) !== null) {
+    sendError(
+      id,
+      BRIDGE_JSON_RPC_ERRORS.INVALID_PARAMS,
+      "Shell commands must be queued as a new turn",
+    );
+    return;
+  }
+
   const session = sessionsByBbThreadId.get(params.threadId);
   if (
     !session ||

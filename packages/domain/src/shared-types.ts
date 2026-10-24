@@ -215,6 +215,7 @@ export const promptInputSchema = z.discriminatedUnion("type", [
     type: z.literal("text"),
     text: z.string(),
     mentions: z.array(promptTextMentionSchema).default([]),
+    execution: z.literal("shell").optional(),
     ...promptInputVisibilityFields,
   }),
   z.object({

@@ -161,6 +161,26 @@ export function registerActionsCommands(
   getUrl: () => string,
 ): void {
   parent
+    .command("shell <id> <command>")
+    .description(
+      "Run a user shell command and add its output to the agent session",
+    )
+    .option("--json", "Print machine-readable JSON output")
+    .action(
+      action(async (id: string, command: string, opts: { json?: boolean }) => {
+        const sdk = createCliBbSdk(getUrl());
+        const response = await sdk.threads.experimental_shellCommand({
+          threadId: id,
+          command,
+        });
+        if (opts.json) outputJson(opts, response);
+        else
+          console.log(
+            "Shell command accepted. Follow its output in the thread.",
+          );
+      }),
+    );
+  parent
     .command("update [id]")
     .description("Update a thread")
     .option("--self", "Target the current thread (from BB_THREAD_ID)")

@@ -572,6 +572,16 @@ describe("queued thread messages", () => {
     }
   });
 
+  it("does not merge explicit shell execution with another queued message", () => {
+    const { db, thread } = setup();
+    const first = queueTurnEndMessage(db, thread.id, [{ type: "text", text: "!printf test", mentions: [], execution: "shell" }]);
+    const second = queueTurnEndMessage(db, thread.id, defaultInput);
+    expect(setQueuedThreadMessageGroupBoundary({ db, notifier: noopNotifier, threadId: thread.id,
+      expectedGroupedPrefixQueuedMessageIds: [first.id, second.id], groupBoundaryQueuedMessageId: second.id,
+    }).kind).toBe("invalid_execution_options");
+    expect(listQueuedThreadMessages(db, thread.id).every(row => !row.groupWithNext)).toBe(true);
+  });
+
   it("persists the contiguous lead group boundary", () => {
     const { db, thread } = setup();
     const firstQueuedMessage = createQueuedThreadMessage(db, noopNotifier, {

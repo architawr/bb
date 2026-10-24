@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
   query,
@@ -162,6 +163,10 @@ function buildSdkPermissionOptions(
 
 export class SdkSession {
   private query: Query | undefined;
+  private readonly contextAcks = new Map<
+    string,
+    { resolve: () => void; reject: (error: Error) => void }
+  >();
   private sessionId: string | undefined;
   private inputResolve:
     | ((value: IteratorResult<SDKUserMessage>) => void)
@@ -314,9 +319,11 @@ export class SdkSession {
   pushInput(
     text: string,
     promptId?: NonNullable<SDKUserMessage["uuid"]>,
+    shouldQuery = true,
   ): Promise<void> {
     const message: SDKUserMessage = {
       type: "user",
+      ...(shouldQuery ? {} : { shouldQuery: false }),
       message: { role: "user", content: text },
       parent_tool_use_id: null,
       session_id: this.sessionId ?? "",
@@ -348,6 +355,29 @@ export class SdkSession {
       resolveConsumed,
     });
     return consumed;
+  }
+
+  async appendContext(text: string): Promise<void> {
+    const uuid = randomUUID();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ack = new Promise<void>((resolve, reject) => {
+      this.contextAcks.set(uuid, { resolve, reject });
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              "Claude did not acknowledge command context; the command must not be rerun automatically",
+            ),
+          ),
+        30_000,
+      );
+    });
+    try {
+      await Promise.all([this.pushInput(text, uuid, false), ack]);
+    } finally {
+      clearTimeout(timer);
+      this.contextAcks.delete(uuid);
+    }
   }
 
   stop(): void {
@@ -441,6 +471,8 @@ export class SdkSession {
 
   private rejectQueuedInputs(message: string): void {
     const error = new Error(message);
+    for (const ack of this.contextAcks.values()) ack.reject(error);
+    this.contextAcks.clear();
     while (this.inputQueue.length > 0) {
       const queued = this.inputQueue.shift();
       if (!queued) {
@@ -457,6 +489,14 @@ export class SdkSession {
     try {
       for await (const message of q) {
         this.captureSessionId(message);
+        const ack =
+          message.type === "user" && message.uuid
+            ? this.contextAcks.get(message.uuid)
+            : undefined;
+        if (ack) {
+          ack.resolve();
+          continue;
+        }
         this.onMessage(message);
       }
       this.onDone();

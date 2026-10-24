@@ -3320,6 +3320,13 @@ export function PromptBoxInternal({
           onDiscard={voice.discard}
         />
       ) : null}
+      {value.trimStart().startsWith("!") &&
+      !value.trimStart().startsWith("!!") ? (
+        <div className="px-3 py-1 text-xs text-muted-foreground" role="status">
+          Shell command · Uses terminal permissions · Output is added to agent
+          context
+        </div>
+      ) : null}
       <div
         data-promptbox-layout=""
         className={cn(COLLAPSING_GRID_CLASS, showCompactLayout && "relative")}

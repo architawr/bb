@@ -193,6 +193,7 @@ This index lists every command path that the core CLI registers, including alias
 - `bb thread tell`
 - `bb thread message`
 - `bb thread send`
+- `bb thread shell`
 - `bb thread retry`
 - `bb thread stop`
 - `bb thread compact`

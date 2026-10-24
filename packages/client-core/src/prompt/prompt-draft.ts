@@ -268,7 +268,14 @@ export function promptDraftToInput(draft: PromptDraftState): PromptInput[] {
       }),
       text.length,
     );
-    input.push({ type: "text", text, mentions });
+    input.push({
+      type: "text",
+      text,
+      mentions,
+      ...(text.startsWith("!") && !text.startsWith("!!")
+        ? { execution: "shell" as const }
+        : {}),
+    });
   }
 
   for (const attachment of draft.attachments) {

@@ -13,6 +13,24 @@ import {
 } from "../src/prompt/prompt-draft.js";
 
 describe("prompt draft helpers", () => {
+  it("marks shell drafts explicitly and preserves them through history", () => {
+    const input = promptDraftToInput({
+      text: "!printf hello",
+      mentions: [],
+      attachments: [],
+    });
+    expect(input).toEqual([
+      { type: "text", text: "!printf hello", mentions: [], execution: "shell" },
+    ]);
+    expect(promptDraftToInput(promptInputToDraft(input))).toEqual(input);
+    expect(
+      promptDraftToInput({
+        text: "!!literal",
+        mentions: [],
+        attachments: [],
+      })[0],
+    ).not.toHaveProperty("execution");
+  });
   it("drops invalid legacy raw text drafts", () => {
     const parsed = parsePromptDraftStorage("Investigate flaky login redirect");
     expect(parsed).toEqual({
@@ -189,7 +207,11 @@ describe("prompt draft helpers", () => {
         { start: 30, end: 48, resource: removed },
       ],
       attachments: [
-        { type: "localFile", path: "Pasted-text-1.txt", name: "Pasted text.txt" },
+        {
+          type: "localFile",
+          path: "Pasted-text-1.txt",
+          name: "Pasted text.txt",
+        },
       ],
     });
 

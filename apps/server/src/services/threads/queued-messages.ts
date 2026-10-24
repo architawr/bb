@@ -1,3 +1,4 @@
+import { hasUserShellCommand } from "@bb/domain";
 import {
   getLatestThreadSequence,
   claimNextQueuedThreadMessageGroup,
@@ -464,7 +465,12 @@ async function sendClaimedQueuedMessageForIdleProviderThread(
   deps: LoggedPendingInteractionWorkSessionDeps,
   args: SendClaimedQueuedMessageForThreadArgs,
 ): Promise<ThreadQueuedMessage | null> {
-  if (args.mode !== "auto") {
+  if (
+    args.mode !== "auto" ||
+    args.queuedMessages.some((row) =>
+      hasUserShellCommand(toThreadQueuedMessage(row).content),
+    )
+  ) {
     return null;
   }
   // This fast path dispatches straight to the daemon, bypassing the dispatch

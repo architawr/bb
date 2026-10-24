@@ -152,3 +152,21 @@ Queued messages:
   scheduled spawn creates a `pending` thread and does no environment work (no
   worktree, no setup script) until it is due. The SDK takes `sendAt` in epoch
   milliseconds on `threads.spawn` and `threads.send`.
+
+User shell commands
+
+  bb thread shell <id> '<command>' [--json]
+
+Runs an explicit user command in the thread's workspace and adds its output to
+that same agent session without asking the model to respond. Supported by Codex
+and Claude Code. Commands wait until the agent is idle. Follow output in the
+thread; use `bb thread stop <id>` to cancel. They run with terminal permissions,
+not the agent sandbox. Do not use this user-only operation as an agent tool.
+
+In the chat composer, begin with `!` (for example `!git status`) and press Enter.
+Attachments, mentions and send-together grouping are not supported for shell
+commands. `!!` keeps the input as ordinary chat text. Each command starts in the
+thread workspace; use `cd subdir && command` for another directory. Interactive
+programs belong in the terminal. Failed shell commands are never automatically
+rerun. The output is available to the agent's next reply; shell execution itself
+does not request a model response.

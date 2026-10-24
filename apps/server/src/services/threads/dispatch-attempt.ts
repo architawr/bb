@@ -14,6 +14,8 @@ import {
 } from "@bb/db";
 import {
   createStandaloneBuiltinCompactCommandInput,
+  getUserShellCommand,
+  hasUserShellCommand,
   promptInputSchema,
   type PromptInput,
   type QueuedMessagePayload,
@@ -310,6 +312,37 @@ async function runDispatchAttempt(
 ): Promise<DispatchAttemptOutcome> {
   const { thread } = args;
   let { payload } = args;
+  const shell = hasUserShellCommand(payload.input);
+  if (shell) {
+    try {
+      getUserShellCommand(payload.input);
+    } catch (error) {
+      throw new ApiError(
+        400,
+        "invalid_shell_command",
+        error instanceof Error ? error.message : "Invalid shell command",
+      );
+    }
+    if (
+      !deps.providerRegistry.get(thread.providerId)?.info.capabilities
+        .experimental_userShellCommands
+    ) {
+      throw new ApiError(
+        400,
+        "shell_command_unsupported",
+        "This provider does not support user shell commands.",
+      );
+    }
+    if (args.retryOf || args.startedOnBehalfOf || payload.senderThreadId) {
+      throw new ApiError(
+        400,
+        "shell_command_user_only",
+        "Shell commands require a new explicit user submission; automatic retries are not allowed.",
+      );
+    }
+    payload = { ...payload, mode: "queue-if-active" };
+    args = { ...args, payload };
+  }
   // A stopping thread is writable HERE and nowhere upstream: the checkpoint
   // below turns it into a core wait, which is a truthful "not yet" the row can
   // recover from, rather than the 409 that used to make a stop a dead end for
@@ -317,6 +350,7 @@ async function runDispatchAttempt(
   ensureThreadIsWritable(thread, true);
   assertThreadHostAcceptsWork(deps.db, thread);
   if (
+    !shell &&
     payload.mode === "queue-if-active" &&
     isActiveTurnMainRunIdle(deps, thread)
   ) {
@@ -343,6 +377,13 @@ async function runDispatchAttempt(
     targetThread: thread,
   });
 
+  if (shell && senderThreadId !== null) {
+    throw new ApiError(
+      400,
+      "shell_command_user_only",
+      "Only direct user commands may use shell mode.",
+    );
+  }
   const interruptedStartupRequest =
     (thread.status === "error" || thread.status === "idle") &&
     thread.environmentId === null
@@ -492,6 +533,10 @@ async function runDispatchAttempt(
       return;
     }
 
+    if (shell && currentThread.status === "active") {
+      continued.outcome = waitOn({ kind: "thread-busy" }, null);
+      return;
+    }
     if (payload.mode !== "start" && isManualCompactionActive(deps, thread)) {
       continued.outcome = waitOn({ kind: "thread-busy" }, null);
       return;

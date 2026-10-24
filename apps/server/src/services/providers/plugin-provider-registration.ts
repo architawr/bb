@@ -180,6 +180,9 @@ export function buildPluginProviderRegistration(args: {
     capabilities: {
       supportsThreadArchive,
       supportsThreadRename,
+      ...(declaration.capabilities.experimental_userShellCommands
+        ? { experimental_userShellCommands: true }
+        : {}),
       supportsServiceTier,
       supportsNativeUserQuestion,
       permissionModes: [...permissionModes],

@@ -689,6 +689,11 @@ export interface ThreadsArea {
   retry(args: ThreadRetryArgs): Promise<ThreadRetryResult>;
   search(args: ThreadSearchArgs): Promise<ThreadSearchResult>;
   send(args: ThreadSendArgs): Promise<ThreadSendResult>;
+  /** Execute an explicit user command and record its output in the current agent session, without starting a model response. */
+  experimental_shellCommand(args: {
+    threadId: string;
+    command: string;
+  }): Promise<ThreadSendResult>;
   spawn(args: ThreadSpawnArgs): Promise<ThreadSpawnResult>;
   /**
    * Stop the thread's work and release its loaded runtime. An explicit stop
@@ -1213,6 +1218,13 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
       return threadTabsResponseSchema.parse(body);
     },
   };
+  const send: ThreadsArea["send"] = async (input) =>
+    transport.readJson(
+      transport.api.v1.threads[":id"].send.$post({
+        param: { id: input.threadId },
+        json: sendJson(input),
+      }),
+    );
   return {
     archive: archiveAll,
     archiveAll,
@@ -1473,14 +1485,22 @@ export function createThreadsArea(args: CreateSdkAreaArgs): ThreadsArea {
         ),
       );
     },
-    async send(input) {
-      return transport.readJson(
-        transport.api.v1.threads[":id"].send.$post({
-          param: { id: input.threadId },
-          json: sendJson(input),
-        }),
-      );
+    async experimental_shellCommand({ threadId, command }) {
+      if (!command.trim()) throw new Error("Shell command cannot be empty");
+      return send({
+        threadId,
+        input: [
+          {
+            type: "text",
+            text: `!${command}`,
+            mentions: [],
+            execution: "shell",
+          },
+        ],
+        mode: "queue-if-active",
+      });
     },
+    send,
     async restoreEnvironment(input) {
       return transport.readJson(
         transport.api.v1.threads[":id"]["restore-environment"].$post({

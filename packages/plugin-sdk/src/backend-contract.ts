@@ -1298,6 +1298,8 @@ export type PluginProviderComposerAction = "plan" | "goal";
  * starting the bridge first.
  */
 export interface PluginProviderCapabilities {
+  /** Runs explicit user shell input and records its result in the native session without a model response. */
+  experimental_userShellCommands?: boolean;
   /** The provider accepts a fast/priority service-tier choice — shows the
    * service-tier toggle in the picker. */
   supportsServiceTier: boolean;

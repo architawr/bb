@@ -1348,3 +1348,62 @@ describe("message.dispatch hooks on the queue drain", () => {
     });
   });
 });
+
+describe("user shell dispatch", () => {
+  it("queues a shell command while an agent is active, even when requested as a steer", async () => {
+    await withTestHarness(async (harness) => {
+      const { thread } = seedRunnableThread(harness, {
+        hostId: "host-shell-busy",
+        status: "active",
+      });
+      const provider = harness.deps.providerRegistry.get(thread.providerId);
+      if (!provider) throw new Error("Missing provider fixture");
+      provider.info.capabilities.experimental_userShellCommands = true;
+      const response = await acceptThreadSendRequest(harness.deps, {
+        thread,
+        payload: {
+          input: [
+            {
+              type: "text",
+              text: "!printf test",
+              execution: "shell",
+              mentions: [],
+            },
+          ],
+          mode: "steer-if-active",
+        },
+      });
+      expect(response.delivery).toBe("queued");
+      expect(onlyQueuedRow(harness, thread.id).waitingOn).toEqual({
+        kind: "thread-busy",
+      });
+    });
+  });
+  it("refuses a shell command for a provider that has not opted in", async () => {
+    await withTestHarness(async (harness) => {
+      const { thread } = seedRunnableThread(harness, {
+        hostId: "host-shell-unsupported",
+        status: "idle",
+      });
+      const provider = harness.deps.providerRegistry.get(thread.providerId);
+      if (!provider) throw new Error("Missing provider fixture");
+      provider.info.capabilities.experimental_userShellCommands = false;
+      await expect(
+        acceptThreadSendRequest(harness.deps, {
+          thread,
+          payload: {
+            input: [
+              {
+                type: "text",
+                text: "!printf test",
+                execution: "shell",
+                mentions: [],
+              },
+            ],
+            mode: "auto",
+          },
+        }),
+      ).rejects.toThrow("does not support user shell commands");
+    });
+  });
+});

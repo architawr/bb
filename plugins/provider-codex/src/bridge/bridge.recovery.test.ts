@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -232,3 +232,50 @@ it("fails a rename with a plain error once the ladder is exhausted", async () =>
   expect(response.error?.message).toMatch(/rollout at .+ is empty/);
   expect(response.error?.data).toBeUndefined();
 }, 30_000);
+
+it("routes explicit shell input to the native session and waits for its delayed lifecycle", async () => {
+  const requestLogPath = join(workspaceDir, "requests.jsonl");
+  stubFakeAppServer({ requestLogPath });
+  harness = createBridgeJsonRpcTestHarness(handleLine);
+  harness.sendRequest(1, "thread/resume", {
+    threadId: THREAD_ID,
+    providerThreadId: PROVIDER_THREAD_ID,
+    cwd: workspaceDir,
+    instructionMode: "append",
+    options: { ...FULL_ACCESS_SESSION_OPTIONS },
+  });
+  expect((await harness.waitForResponse(1)).error).toBeUndefined();
+  harness.sendRequest(2, "turn/start", {
+    threadId: THREAD_ID,
+    providerThreadId: PROVIDER_THREAD_ID,
+    clientRequestId: "creq_cdxrcvry22",
+    input: [
+      { type: "text", text: "!printf exact", execution: "shell", mentions: [] },
+    ],
+    options: { ...FULL_ACCESS_SESSION_OPTIONS },
+  });
+  expect((await harness.waitForResponse(2)).error).toBeUndefined();
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  expect(threadDeltas()).not.toContainEqual(
+    expect.objectContaining({ kind: "turn.boundary" }),
+  );
+  await waitForNotification("thread/delta", () =>
+    threadDeltas().some(
+      (delta) =>
+        typeof delta === "object" &&
+        delta !== null &&
+        "kind" in delta &&
+        delta.kind === "turn.boundary",
+    ),
+  );
+  expect(threadDeltas()).toContainEqual(
+    expect.objectContaining({
+      kind: "input.accepted",
+      clientRequestId: "creq_cdxrcvry22",
+    }),
+  );
+  const log = readFileSync(requestLogPath, "utf8");
+  expect(log).toContain('"method":"thread/shellCommand"');
+  expect(log).toContain('"command":"printf exact"');
+  expect(log).not.toContain('"method":"turn/start"');
+});

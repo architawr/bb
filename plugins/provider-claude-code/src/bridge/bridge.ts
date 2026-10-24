@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { runUserShell, shellResultContext } from "./user-shell.js";
+import { experimental_getUserShellCommand as getUserShellCommand } from "@get-bb/plugin-sdk/provider-bridge";
 import { experimental_selectedSkillMentions as selectedSkillMentions } from "@get-bb/plugin-sdk/provider-bridge";
 import { ClaudeContextUsageCollector } from "./context-usage.js";
 import { readIsolatedClaudeContextUsage } from "./context-usage-probe.js";
@@ -235,6 +237,11 @@ interface ClaudeSessionRestart {
   reason: string;
   showRuntimeNote: boolean;
 }
+
+const shellRuns = new Map<
+  string,
+  { controller: AbortController; done: Promise<void> }
+>();
 
 interface ThreadSession {
   commandListGeneration: number;
@@ -623,6 +630,11 @@ async function closeThreadSession(args: {
   message: string;
   threadId: string;
 }): Promise<void> {
+  const shell = shellRuns.get(args.threadId);
+  if (shell) {
+    shell.controller.abort();
+    await shell.done;
+  }
   const existingClose = closingSessions.get(args.threadId);
   if (existingClose) {
     return existingClose;
@@ -1669,6 +1681,7 @@ function createOnSdkDone(
     });
     if (!threadSession) return;
 
+    shellRuns.get(args.threadIdRef.current)?.controller.abort();
     threadSession.streamEnded = true;
     resolvePendingSessionWork(
       threadSession,
@@ -2584,10 +2597,109 @@ async function runTurnInput(
   }
 }
 
+async function handleUserShell(
+  id: string | number,
+  params: CanonicalTurnStartParams,
+  command: string,
+): Promise<void> {
+  const attachment = threadAttachments.get(params.threadId);
+  if (attachment) {
+    const turn = claudeTurnStartParamsSchema.parse(
+      buildClaudeTurnParams({
+        threadId: params.threadId,
+        providerThreadId: params.providerThreadId,
+        input: params.input,
+        options: params.options,
+      }),
+    );
+    applyTurnEnvironment(attachment, turn.config);
+  }
+  const thread = await getWritableThreadSession(params.threadId, "new-turn");
+  if (
+    !thread ||
+    shellRuns.has(params.threadId) ||
+    thread.translator.hasOpenTurn(params.threadId)
+  ) {
+    sendError(
+      id,
+      BRIDGE_JSON_RPC_ERRORS.BRIDGE_ERROR,
+      "The agent session is not available for a shell command",
+    );
+    return;
+  }
+  const controller = new AbortController();
+  const key = { providerItemId: randomUUID() };
+  const cwd = thread.attachment.sessionOptions.cwd;
+  const item = { type: "command" as const, command, cwd };
+  const emit = (deltas: ThreadDelta[]) =>
+    sendThreadDeltas(params.threadId, deltas);
+  emitCanonicalTurnInputAccepted(thread, params, params.threadId);
+  emit([{ kind: "item.open", key, item }]);
+  sendResult(id, { threadId: params.threadId });
+  const done = (async () => {
+    let closed = false;
+    try {
+      const result = await runUserShell({
+        command,
+        cwd,
+        env: { ...process.env, ...thread.attachment.sessionOptions.env },
+        signal: controller.signal,
+        onOutput: (text) =>
+          emit([{ kind: "item.outputDelta", key, channel: "command", text }]),
+      });
+      emit([
+        {
+          kind: "item.close",
+          key,
+          item,
+          status: result.cancelled
+            ? "interrupted"
+            : result.exitCode === 0
+              ? "completed"
+              : "failed",
+          aggregatedOutput: result.output,
+          exitCode: result.exitCode,
+        },
+      ]);
+      closed = true;
+      await thread.session.appendContext(
+        shellResultContext(command, cwd, result),
+      );
+      emit(
+        thread.translator.finishUserShell(
+          params.threadId,
+          result.cancelled ? "interrupted" : "completed",
+        ),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!closed)
+        emit([
+          {
+            kind: "item.close",
+            key,
+            item,
+            status: "failed",
+            resultText: message,
+          },
+        ]);
+      emitSessionError(thread, params.threadId, message);
+    } finally {
+      shellRuns.delete(params.threadId);
+    }
+  })();
+  shellRuns.set(params.threadId, { controller, done });
+}
+
 async function handleTurnStart(
   id: string | number,
   params: CanonicalTurnStartParams,
 ): Promise<void> {
+  const command = getUserShellCommand(params.input);
+  if (command !== null) {
+    await handleUserShell(id, params, command);
+    return;
+  }
   await runTurnInput(
     id,
     claudeTurnStartParamsSchema.parse(
@@ -2610,6 +2722,15 @@ async function handleTurnSteer(
   id: string | number,
   params: CanonicalTurnSteerParams,
 ): Promise<void> {
+  if (getUserShellCommand(params.input) !== null) {
+    sendError(
+      id,
+      BRIDGE_JSON_RPC_ERRORS.INVALID_PARAMS,
+      "Shell commands must be queued as a new turn",
+    );
+    return;
+  }
+
   await runTurnInput(
     id,
     claudeTurnSteerParamsSchema.parse(
@@ -2646,6 +2767,7 @@ async function handleThreadStop(
 ): Promise<void> {
   const threadSession = threadAttachments.get(params.threadId)?.residentSession;
   if (
+    !shellRuns.has(params.threadId) &&
     params.intent === "interrupt" &&
     threadSession != null &&
     !threadSession.closing

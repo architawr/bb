@@ -893,6 +893,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         surfaceIds: [
           "storage",
           "bb-sdk",
+          "thread-user-shell",
           "thread-plugin-metadata",
           "desktop-browsers",
           "ai-services",
@@ -1480,6 +1481,24 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "Workflows",
           "Worktree",
         ],
+      },
+      {
+        id: "thread-user-shell",
+        tagline: "Run a user command with agent context",
+        title: "User shell commands",
+        summary:
+          "Run user shell commands in the current agent session. With this, a plugin can:",
+        bullets: [
+          "Execute a user command on the thread's machine and working directory",
+          "Queue behind active work without asking the model to execute or respond",
+          "Keep command output in agent context through supported providers, using terminal permissions",
+        ],
+        apiSymbols: [
+          "PluginBbSdk",
+          "PluginProviderCapabilities",
+          "experimental_getUserShellCommand",
+        ],
+        firstParty: ["Codex provider", "Claude Code provider"],
       },
       {
         id: "thread-plugin-metadata",

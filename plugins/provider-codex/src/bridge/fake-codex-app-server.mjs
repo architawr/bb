@@ -558,6 +558,38 @@ async function handleRequest(message) {
       }
       return;
     }
+    case "thread/shellCommand": {
+      respond(id, {});
+      setTimeout(() => {
+        const turnId = `shell-${++turnCounter}`;
+        notify("turn/started", {
+          threadId: params.threadId,
+          turn: { id: turnId, status: "inProgress" },
+        });
+        notify("item/completed", {
+          threadId: params.threadId,
+          turnId,
+          item: {
+            type: "commandExecution",
+            id: `shell-item-${turnCounter}`,
+            command: params.command,
+            cwd: process.cwd(),
+            processId: null,
+            source: "userShell",
+            status: "completed",
+            commandActions: [],
+            aggregatedOutput: "native-shell-result",
+            exitCode: 0,
+            durationMs: 1,
+          },
+        });
+        notify("turn/completed", {
+          threadId: params.threadId,
+          turn: { id: turnId, status: "completed" },
+        });
+      }, 150);
+      return;
+    }
     case "turn/start": {
       if (firstInputText(params.input) === ZERO_WORK_PROMPT_TEXT) {
         respond(id, {});

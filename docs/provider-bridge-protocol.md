@@ -635,3 +635,19 @@ scenario set: `checkRecordedCellReplay` replays a bridge's cells and reports
 not-empty}` per cell. The pi, Claude Code, and Codex plugins' tests use only
 public dependencies, so `packages/provider-parity` replays their committed
 cells instead.
+
+## Explicit user shell input
+
+An opted-in provider can receive a single visible text input with
+`execution: "shell"` and `text: "!<command>"` through `turn/start`. Additional
+agent-only context is not executable. The bridge must validate the shape, execute
+only the command after the first `!`, emit the ordinary input acceptance and
+command lifecycle, and record the result in the native session without asking
+the model to execute or respond. `turn/steer` is not a shell execution surface.
+
+This input is gated by `capabilities.experimental_userShellCommands`; the server
+serializes it behind active work and rejects automatic retries and grouped input.
+Commands have the user's terminal permissions, not the agent's sandbox policy.
+The Codex bridge calls `thread/shellCommand`. The Claude bridge uses the session
+host and environment, then sends `SDKUserMessage.shouldQuery: false` and waits for
+replay acknowledgement. A failure after execution must not rerun the command.

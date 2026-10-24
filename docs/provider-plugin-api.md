@@ -481,3 +481,8 @@ plugin, and only on hosts its server instructs.
 Helper tasks (thread titles, commit messages, voice transcripts) are
 plugin-served through `bb.experimental_aiServices`, documented in the
 bb-plugin-authoring skill's `backend-cli-agents.md`.
+
+Providers may opt into `capabilities.experimental_userShellCommands` to handle
+explicit user shell input through the existing turn lifecycle. See the
+[provider bridge contract](provider-bridge-protocol.md#explicit-user-shell-input)
+and the Plugin Guide user shell surface.

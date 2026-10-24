@@ -1413,6 +1413,14 @@ export function createClaudeDeltaTranslator(
 
   return {
     acceptInput,
+    finishUserShell(
+      threadId: string,
+      status: "completed" | "interrupted" | "failed",
+    ): ThreadDelta[] {
+      return withMirror(stateFor({ threadId }), [
+        { kind: "turn.boundary", status },
+      ]);
+    },
     buildSessionSettlementDeltas,
     configureInjectedTools,
     configureSandbox: (enabled: boolean) => {

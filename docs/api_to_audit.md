@@ -3643,3 +3643,25 @@ Docs: `providers.md`.
 
 Before stabilization, decide whether `model/list` `supportedServiceTiers` may
 override the icon and whether reasoning levels should render it.
+
+## User shell commands
+
+`PluginProviderCapabilities.experimental_userShellCommands` opts a provider into
+explicit user shell input: one text block with `execution: "shell"`, text beginning
+with `!`, and no attachments or mentions. Ordinary text is never executable merely
+because it begins with `!`. `experimental_getUserShellCommand` in the provider
+bridge SDK validates and extracts that command. Codex and Claude Code are the
+first callers.
+
+`bb.sdk.threads.experimental_shellCommand({ threadId, command })` uses the same
+send/queue path as the core composer and `bb thread shell`. Shell input waits for
+an idle thread, cannot be grouped, and cannot be automatically retried. Codex uses
+its native `thread/shellCommand`; Claude executes on the session host and appends
+the recorded result with `shouldQuery: false`, waiting for its UUID acknowledgement
+before settling the BB turn. Output is command evidence, never an instruction to
+execute the command again. No model response is requested.
+
+Stabilization requires live tests for both native providers, session resume,
+remote hosts, cancellation and descendants, duplicate submissions, delivery
+failures, and ordering with queued follow-ups. Core UI and CLI use the same
+explicit input marker and server dispatch checks as the SDK method.
