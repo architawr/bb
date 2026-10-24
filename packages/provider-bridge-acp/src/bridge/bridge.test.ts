@@ -1420,9 +1420,10 @@ describe("acp bridge", () => {
       });
       await waitForFileWithRealTimer(readyFile);
       expect(findResponse(failingId)).toBeUndefined();
-      await vi.advanceTimersByTimeAsync(30_000);
     } finally {
-      vi.useRealTimers();
+      await vi
+        .advanceTimersByTimeAsync(30_000)
+        .finally(() => vi.useRealTimers());
     }
 
     const response = await waitForResponse(failingId!);
