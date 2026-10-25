@@ -9,7 +9,10 @@ export {
 export { useThreadTimelineController } from "./useThreadTimelineController.js";
 export type { TimelineTitleActionResolver } from "./TimelineTitleView.js";
 export { TimelineWorkingIndicator } from "./TimelineWorkingIndicator.js";
-export { ThreadContextWindowIndicator } from "./ThreadContextWindowIndicator.js";
+export {
+  ThreadContextWindowIndicator,
+  type ThreadContextWindowCompactAction,
+} from "./ThreadContextWindowIndicator.js";
 export type {
   ThreadTimelineEditMessageHandler,
   ThreadTimelineEditMessageTarget,

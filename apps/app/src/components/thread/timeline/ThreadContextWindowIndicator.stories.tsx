@@ -4,6 +4,7 @@ import { StoryCard, StoryRow } from "../../../../.ladle/story-card";
 import {
   ThreadContextWindowCard,
   ThreadContextWindowIndicator,
+  type ThreadContextWindowCompactAction,
 } from "./ThreadContextWindowIndicator";
 
 export default {
@@ -25,14 +26,25 @@ const approachingLimit = usage(166_000);
 const critical = usage(192_000);
 const estimated = usage(150_000, true);
 
+const compactAvailable: ThreadContextWindowCompactAction = {
+  disabled: false,
+  onCompact: () => {},
+};
+const compactWhileRunning: ThreadContextWindowCompactAction = {
+  disabled: true,
+  onCompact: () => {},
+};
+
 function UsageCardRow({
   label,
   hint,
   usage: u,
+  compactAction,
 }: {
   label: string;
   hint: string;
   usage: ThreadContextWindowUsage;
+  compactAction?: ThreadContextWindowCompactAction;
 }) {
   return (
     <StoryRow
@@ -40,7 +52,11 @@ function UsageCardRow({
       hint={hint}
       className="max-md:grid-cols-1 max-md:gap-y-3"
     >
-      <ThreadContextWindowCard usage={u} className="max-w-full max-md:w-80" />
+      <ThreadContextWindowCard
+        usage={u}
+        compactAction={compactAction}
+        className="max-w-full max-md:w-80"
+      />
     </StoryRow>
   );
 }
@@ -233,6 +249,7 @@ export function Overview() {
               estimated: claudeSnapshot.estimated,
               snapshot: claudeSnapshot,
             }}
+            compactAction={compactAvailable}
             className="max-w-full max-md:w-80"
           />
         </div>
@@ -251,6 +268,18 @@ export function Overview() {
         label="Usage menu — estimated (75%)"
         hint='Header reads "Estimated context"'
         usage={estimated}
+      />
+      <UsageCardRow
+        label="Compact action — idle"
+        hint="Shown when the provider supports manual compaction"
+        usage={approachingLimit}
+        compactAction={compactAvailable}
+      />
+      <UsageCardRow
+        label="Compact action — running"
+        hint="Disabled until the thread is idle"
+        usage={moderate}
+        compactAction={compactWhileRunning}
       />
     </StoryCard>
   );

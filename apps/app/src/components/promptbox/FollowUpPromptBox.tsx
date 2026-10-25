@@ -60,7 +60,10 @@ import { useBottomAnchoredScroll } from "@/components/ui/bottom-anchored-scroll-
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { ThreadTimelineScrollToBottomButton } from "@/views/thread-detail/ThreadTimelineScrollToBottomButton";
-import { ThreadContextWindowIndicator } from "@/components/thread/timeline";
+import {
+  ThreadContextWindowIndicator,
+  type ThreadContextWindowCompactAction,
+} from "@/components/thread/timeline";
 import { formatCompactTokenCount } from "@/components/thread/timeline/thread-context-window-usage";
 import {
   CompactBeforeSendChip,
@@ -161,6 +164,7 @@ export interface FollowUpPromptBoxProps {
   environmentSummary: ReactNode | null;
   compactEnvironmentSummary?: ReactNode;
   contextWindowUsage: ContextWindowUsage | null;
+  contextCompactAction?: ThreadContextWindowCompactAction | null;
   compactBeforeSend?: CompactBeforeSendOffer | null;
   execution: ExecutionControlsProps;
   permission: ExecutionPermissionConfig;
@@ -240,6 +244,7 @@ function FollowUpPromptBoxWithComposer({
   environmentSummary,
   compactEnvironmentSummary = null,
   contextWindowUsage,
+  contextCompactAction = null,
   compactBeforeSend = null,
   execution,
   permission,
@@ -827,7 +832,10 @@ function FollowUpPromptBoxWithComposer({
             {sessionOptionsControl}
             {permissionControl}
             {contextWindowUsage ? (
-              <ThreadContextWindowIndicator usage={contextWindowUsage} />
+              <ThreadContextWindowIndicator
+                usage={contextWindowUsage}
+                compactAction={contextCompactAction}
+              />
             ) : null}
           </div>
         </div>

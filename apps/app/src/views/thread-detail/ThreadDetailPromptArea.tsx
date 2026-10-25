@@ -19,7 +19,10 @@ import {
   getFollowUpPromptPlaceholder,
   getCompactFollowUpPromptPlaceholder,
 } from "@/components/promptbox/follow-up-placeholder";
-import { PERSONAL_PROJECT_ID } from "@bb/domain";
+import {
+  createStandaloneBuiltinCompactCommandInput,
+  PERSONAL_PROJECT_ID,
+} from "@bb/domain";
 import type {
   PermissionMode,
   ReasoningLevel,
@@ -1317,6 +1320,46 @@ export function ThreadDetailPromptArea({
       runtimeDisplayStatus,
     ],
   );
+  const handleCompactContext = useCallback(async () => {
+    const request = buildAutoFollowUpRequest({
+      compactFirst: false,
+      threadId: thread.id,
+      input: createStandaloneBuiltinCompactCommandInput(),
+      execution: followUpExecutionSelection,
+    });
+    if (!request) return;
+    try {
+      await sendMessage.mutateAsync(request);
+      setFullHistoryThreadId(null);
+    } catch (nextError) {
+      reportMutationError({
+        error: nextError,
+        fallbackMessage: "Failed to compact context",
+        lifecycleOperation: "send_message",
+      });
+    }
+  }, [followUpExecutionSelection, sendMessage, thread.id]);
+  const supportsManualCompaction =
+    providers.find((provider) => provider.id === thread.providerId)
+      ?.capabilities.supportsManualCompaction ?? false;
+  const contextCompactAction = useMemo(
+    () =>
+      supportsManualCompaction && !isHandoffSelection
+        ? {
+            disabled:
+              !canCompactBeforeSend(runtimeDisplayStatus) ||
+              isFollowUpSubmitting,
+            onCompact: () => void handleCompactContext(),
+          }
+        : null,
+    [
+      handleCompactContext,
+      isFollowUpSubmitting,
+      isHandoffSelection,
+      runtimeDisplayStatus,
+      supportsManualCompaction,
+    ],
+  );
   const handleModifierSubmit = useCallback(
     async ({ sendAt, pluginSubmission }: ComposerSubmitExtras = {}) => {
       if (!canSubmitModifierShortcut) {
@@ -2302,6 +2345,7 @@ export function ThreadDetailPromptArea({
       environmentSummary={environmentSummary}
       compactEnvironmentSummary={compactEnvironmentSummary}
       contextWindowUsage={contextWindowUsage ?? null}
+      contextCompactAction={contextCompactAction}
       compactBeforeSend={
         compactBeforeSendTokens === null
           ? null

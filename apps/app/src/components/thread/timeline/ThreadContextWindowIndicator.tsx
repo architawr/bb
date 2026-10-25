@@ -2,6 +2,8 @@ import { useId, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@bb/shared-ui/popover";
 import type { ThreadContextWindowUsage } from "@bb/server-contract";
 import { useHoverPopover } from "../../ui/hooks/use-hover-popover.js";
+import { Button } from "@bb/shared-ui/button";
+import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
   calculateContextWindowUsagePercent,
@@ -15,19 +17,27 @@ import {
   ThreadContextWindowSegments,
 } from "./ThreadContextWindowDetails.js";
 
+export interface ThreadContextWindowCompactAction {
+  disabled: boolean;
+  onCompact: () => void;
+}
+
 interface ThreadContextWindowCardProps {
   usage: ThreadContextWindowUsage;
+  compactAction?: ThreadContextWindowCompactAction | null;
   className?: string;
 }
 
 interface ThreadContextWindowIndicatorProps {
   usage: ThreadContextWindowUsage;
+  compactAction?: ThreadContextWindowCompactAction | null;
   defaultOpen?: boolean;
 }
 
 const CONTEXT_WINDOW_POPOVER_CLOSE_DELAY_MS = 60;
 export function ThreadContextWindowCard({
   usage,
+  compactAction = null,
   className,
 }: ThreadContextWindowCardProps) {
   const details = usage.snapshot?.categories.length
@@ -130,39 +140,65 @@ export function ThreadContextWindowCard({
         ) : null}
       </div>
       {details ? (
-        <>
-          <div className="-mx-2 max-md:pointer-coarse:-mx-4">
-            <ContextWindowReveal id={detailsId} open={detailsExpanded}>
-              <ThreadContextWindowDetails
-                details={details}
-                capacity={usage.modelContextWindow}
-              />
-            </ContextWindowReveal>
-          </div>
-          <button
-            type="button"
-            className="ml-auto mt-2 flex cursor-pointer items-center gap-1.5 rounded-xs text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:pointer-coarse:mt-3 max-md:pointer-coarse:py-1 max-md:pointer-coarse:text-sm"
-            aria-expanded={detailsExpanded}
-            aria-controls={detailsId}
-            onClick={() => setDetailsExpanded((value) => !value)}
-          >
-            {detailsExpanded ? "Hide details" : "Show details"}
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              aria-hidden="true"
-              data-icon-root=""
-              className={cn(
-                "size-3 transition-transform duration-200 ease-out motion-reduce:transition-none",
-                detailsExpanded && "rotate-180",
-              )}
+        <div className="-mx-2 max-md:pointer-coarse:-mx-4">
+          <ContextWindowReveal id={detailsId} open={detailsExpanded}>
+            <ThreadContextWindowDetails
+              details={details}
+              capacity={usage.modelContextWindow}
+            />
+          </ContextWindowReveal>
+        </div>
+      ) : null}
+      {details || compactAction ? (
+        <div className="mt-2 flex items-center gap-2 max-md:pointer-coarse:mt-3">
+          {compactAction ? (
+            <span
+              className="inline-flex"
+              title={
+                compactAction.disabled
+                  ? "Available when the thread is idle"
+                  : "Summarize the history to free up context"
+              }
             >
-              <path d="m4 6 4 4 4-4" />
-            </svg>
-          </button>
-        </>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 px-2.5 [&_[data-icon-root]]:size-3.5 max-md:pointer-coarse:h-9 max-md:pointer-coarse:text-sm"
+                disabled={compactAction.disabled}
+                onClick={compactAction.onCompact}
+              >
+                <Icon name="CircleArrowShrink" aria-hidden />
+                Compact
+              </Button>
+            </span>
+          ) : null}
+          {details ? (
+            <button
+              type="button"
+              className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-xs text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:pointer-coarse:py-1 max-md:pointer-coarse:text-sm"
+              aria-expanded={detailsExpanded}
+              aria-controls={detailsId}
+              onClick={() => setDetailsExpanded((value) => !value)}
+            >
+              {detailsExpanded ? "Hide details" : "Show details"}
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+                aria-hidden="true"
+                data-icon-root=""
+                className={cn(
+                  "size-3 transition-transform duration-200 ease-out motion-reduce:transition-none",
+                  detailsExpanded && "rotate-180",
+                )}
+              >
+                <path d="m4 6 4 4 4-4" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -170,19 +206,23 @@ export function ThreadContextWindowCard({
 
 export function ThreadContextWindowIndicator({
   usage,
+  compactAction = null,
   defaultOpen,
 }: ThreadContextWindowIndicatorProps) {
   const details = usage.snapshot?.categories.length
     ? usage.snapshot
     : undefined;
+  const hoverableContent = details !== undefined || compactAction !== null;
   const {
     open: hoverOpen,
     triggerHoverProps,
     contentHoverProps,
     handleOpenChange,
   } = useHoverPopover({
-    closeDelayMs: details ? 200 : CONTEXT_WINDOW_POPOVER_CLOSE_DELAY_MS,
-    hoverableContent: details !== undefined,
+    closeDelayMs: hoverableContent
+      ? 200
+      : CONTEXT_WINDOW_POPOVER_CLOSE_DELAY_MS,
+    hoverableContent,
   });
   const open = defaultOpen || hoverOpen;
 
@@ -258,6 +298,7 @@ export function ThreadContextWindowIndicator({
       >
         <ThreadContextWindowCard
           usage={usage}
+          compactAction={compactAction}
           className="max-md:w-full max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:px-4 max-md:pt-2 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] max-md:shadow-none"
         />
       </PopoverContent>
